@@ -365,7 +365,7 @@ codigo, debemos ejecutar el comando de npm run migrations:generate productos
 Recordar que eso nos crea un archivo dentro de la carpeta migraciones
 Y luego de hacer lo correspondiente en ese archivo -> npm run migrations:run
 
-
+Seguir en la clase 19..
 
 
 
