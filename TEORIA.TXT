@@ -1,0 +1,375 @@
+CURSO DE NODE.JS : Base de datos con PostgreSQL (Alternativa a mysql)
+
+Luego de clonar el repo,
+
+ npm i -->en la terminal para instalar dependencias
+
+Y npm run dev
+
+Docker : Instalar y seguir pasos
+
+Corriendo postgres con Docker
+Crear un archivo docker-compose.yml para indicarle que archivos necesitamos
+
+Debo instalar ubunt(para correr linux en windows)
+
+Luego ejecutar el comando docker-compose up -d nombreServicio
+Luego docker-compose ps (para saber si esta corriendo el programa)
+
+docker-compose down nombreServicio y deja de correr el nombreServicio
+
+version: '3.3'
+
+services:
+  postgres: //Este es el nombre del servicio
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=my_store
+      - POSTGRES_USER=lalo
+      - POSTGRES_PASSWORD=admin123
+    ports:
+      - 5432:5432
+    volumes:
+      - ./postgres_data:/var/lib/postgres/data //Donde se va a correr,esa carpeta existe
+
+Agregar esa carpeta de postgres_data al gitignore
+
+Explorando nuestra base de datos
+Para conectarse a la base de datos
+docker-compose exec postgres bash (postgres es el name del servicio)
+Luego de /# ejecutamos el comando  psql -h localhost -d my_store -U lalo
+
+(localhost es el servidor que me quiero conectar) -d(nombre de la base de datos)
+-U(nombre del usuario) -->Todo esto lo configure en docker-compose.yml
+
+Luego my_store=# \d+ para saber que hay dentro de la base de datos
+\q para salir de la base de datos
+y exit para volver a la maquina
+
+
+Lo de antes fue por terminal, luego esta pgAdmin para correr nuestra
+base de datos ->Tendremos una interfaz para ver las base de datos
+
+
+Definimos otro servicio en docker-compose.yml para poder correr
+pgAdmin desde docker
+
+docker-compose up -d pgadmin
+
+version: '3.3'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=my_store
+      - POSTGRES_USER=lalo
+      - POSTGRES_PASSWORD=admin123
+    ports:
+      - 5432:5432
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+       - PGADMIN_DEFAULT_EMAIL=admin@mail.com Si pongo este usuario y contraseña en pgadmin deberia aceptarlo
+       - PGADMIN_DEFAULT_PASSWORD=root
+    ports:
+      - 5050:80 //Si voy a localhost:5050 ira a la pagina de pgadmin
+
+Luego en pgadmin vamos a objetc, create, server
+En conecction me pedira donde esta corriendo mi base de datos
+
+docker ps
+
+Para obtener la IP  --> El que dice postgres 13 , no el de pgadmin
+docker inspect (id producto que me lo da al hacer docker ps)
+Y ahi me arrojara el IP donde esta corriendo
+Ahi ya tendremos creada la base de datos
+Vamos a myStore,dataBases y my_store
+Clickeamos queryTool para crear nuestra primera TABLA
+
+Tabla para tareas : (en el queryTool) arriba a la derecha
+CREATE TABLE tasks (
+  id serial PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  completed boolean DEFAULT false
+);
+
+Luego ejecutamos esta consulta con el ejecutar (boton de play)
+Si esta todo bien saldra que se corrio de la forma correcta
+En tables estara creada nuestra Tabla llamada tasks(en schemas)
+
+
+Para acceder a la tabla desde la terminal
+docker-compose exec postgres bash
+root@id:/# psql -h localhost -d my_store -U lalo
+my_store =# \d+
+
+
+INTEGRACION DE NODE-POSTGRES
+
+npm install pg --> Driver de NODE
+
+Creamos la funcion para la conexion en un archivo postgres.JS
+const{Client} = require('pg');
+const { password } = require('pg/lib/defaults');
+
+async function getConnection() { //Funcion para realizar la conexion node-postgres
+
+const client = new Client({
+  host:'localhost', //host que quiero
+  port:5432,
+  user:'lalo', //usuario que puse antes
+  password:'admin123', //paswword q puse antes tambien
+  database:'my_store'
+});
+//Esto devuelve una promesa entonces :
+await client.connect();
+return client; //Para q pueda empezar a utilizarlo
+}
+
+module.exports = getConnection;
+Luego en userServices llamo a la libreria
+
+Luego de crear la tabla en pgADMIN, voy a tasks y
+escribo esto :
+SELECT * FROM public.tasks
+ORDER BY id ASC
+Lo corro y creo las tareas abajo
+Luego de insertar todas estas tareas le doy al boton de save data changes
+
+El id y la variable completed los asigna default
+Ahora el insomnia al poner la url de users y ponerle send
+nos traera las tareas que tenemos en nuestra tabla
+[
+	{
+		"id": 1,
+		"title": "Tarea 1",
+		"completed": false
+	},
+	{
+		"id": 2,
+		"title": "Completar los cursos de nicobytes\n",
+		"completed": false
+	},
+	{
+		"id": 3,
+		"title": "limpiar",
+		"completed": false
+	}
+]
+
+
+Manejando una conexion Pool -->Mucho mas adecuada que la anterior
+
+La conexion que realizamos antes, no es la mas adecuada ya que cada vez
+que llamamos a getConnection, estamos creando muchas conexiones
+
+Pooling para utilizar siempre la misma conexion y se ADECUADA :
+RECORDAR SIEMPRE VER LA DOCUMENTACION
+
+Variables de ambiente : Todas las variables como el usuario,password
+no se debe poner en el codigo(MALA PRACTICA).
+Debemos empezar a leer variables de entorno y ser mas seguros.
+Creamos una carpeta llamada config y dentro un archivo config.JS
+En el package.json debemos definir esas variables de entorno
+No olvidar definirlas en package.json
+Para definirlas en el package, utilizamos el archivo .env
+En el env.example debemos poner un ejemplo sin los valores, ya que
+no es seguro tenerlo en github y eso.
+Para poder leer los archivos debemos instalar dotenv
+  npm i dotenv
+
+
+ORM :
+Capa que le agregamos a nuestra app para conectarnos a nuestra base
+de datos. El orm transforma y mapea toda nuestra base de datos
+con metodos de programacion orientada a objetos
+Nos olvidamos de hace un select tasks... directamente hacemos
+un metodo find
+
+Sequelize : Es un orm,tiene una integracion muy buena con javascript
+npm  install --save sequelize
+Luego instalamos los drivers que necesitamos
+npm install -save pg-hstore
+
+
+PRIMER MODELO :
+
+Carpeta db -> Todo lo relacionado a la base de datos
+
+Los datos de la tabla debo rellenarlo en pgAdmin, recordar lo que debo
+escribir
+Luego de crear la tabla en pgADMIN, voy a tasks y
+escribo esto :
+SELECT * FROM public.tasks
+ORDER BY id ASC
+Lo corro y creo las tareas abajo
+Luego de insertar todas estas tareas le doy al boton de save data changes
+Relleno los datos de usuario
+
+CRUD DESDE EL ORM -->Crear,actualizar y eliminar por medio del ORM
+
+TODO DESDE INSOMNIA, PROBAR LAS URL
+
+Para correr todos los servicios : docker-compose up -d
+
+
+Capturar errores que vienen desde el ORM
+Creamos un nuevo middleware dentro de error.handler.js
+function ormErrorHandler(err,req,res,next) {
+  if(err instanceof ValidationError) {
+    res.status(409).json({
+      statusCode:409,
+      message:err.name,
+      errors:err.errors
+    });
+
+  }
+  next(err);
+}
+
+/************************/
+
+CAMBIO A MYSQL :
+
+Para utlizar mysql --> Nos vamos al archivo docker-compose.yml
+y escribimos lo siguiente para que funcione en docker(SUPER FUNCIONAL DOCKER)
+
+  mysql:
+   image: mysql:5
+   environment:
+    - MYSQL_DATABASE =my_store
+    - MYSQL_USER=lalo
+    - MYSQL_ROOT_PASSWORD=admin123
+    - MYSQL_PORT=3306
+  ports:
+     - 3306:3306
+  volumes:
+  - ./mysql_data:/var/lib/mysql
+
+   phpmyadmin:
+   image: phpmyadmin/phpmyadmin
+   environment:
+    - MYSQL_ROOT_PASSWORD =admin123
+    - PMA_HOST=mysql
+
+   ports:
+   - 8080:80
+
+  Luego en la terminal
+
+docker-compose up -d mysql (para levantar mi servicio,se llama asi)
+docker-compose ps --> Me saldra los servicios que estoy corriendo y
+en que puerto
+
+docker-compose up -d phpmyadmin para levantar phpmyadmin
+
+Instalacion de driver para mysql :
+
+npm install --save mysql2
+
+El user debe ser root para que pueda acceder
+
+Ahora todo seguira funcionando pero los users no estaran ya que
+cambie de base de dato a mySql
+
+Ahora nos vamos a phpMyadmin y en el localhost:8080(porque ahora estara
+corriendo ahi mi base de datos mysql) ingresamos sesion con
+usuario:root y password admin123
+Ahora ya estare en la base de datos MYSQL(my_store) y
+estara la tabla users
+
+ESTO ES MUY FUERTE DE UN ORM Y DOCKER, YA QUE PERMITE CAMBIAR DE MOTOR
+FACILMENTE(POSTGRESS,MYSQL) MANTENIENDO LA MISMA ESTRUCTURA
+Recordar que docker es muy importante....
+
+
+MIGRACIONES : Las migraciones es la forma en la que se propagan cambios
+en modelos y la proporciona en la base de datos.
+Sistema de control de versiones para controlar los cambios desde el
+codigo y trackear los cambios en la base de datos
+
+npm i sequelize-cli --save-dev
+Crear un archivo .sequelizerc
+
+modificar scripts en package.json para correr algunas migraciones:
+"scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "lint": "eslint",
+    "migrations:generate": "sequelize-cli migrations:generate --name"
+    "migrations:run": "sequelize-cli db:migrate"
+  },
+
+  npm run migrations:generate create-user
+Ahora en la carpeta de migrations nos dejara un archivo que nos da
+una estructura de como crear las migraciones
+Eliminamos todas las tablas que creamos y las haremos a traves de
+migraciones(control de versiones,como git)
+
+
+Recordar que para volver a la base de datos de postgress
+debemos cambiar el puerto en el archivo .env
+PORT = 3000
+DB_USER = 'lalo' //Esto tambien se debe cambiar ya que pàra usar MYSQL debe estar en root
+DB_PASSWORD = 'admin123'
+DB_HOST = 'localhost'
+DB_NAME = 'my_store'
+DB_PORT='5432' -> Con mysql es otro
+
+npm run migrations:run
+Me creara la tabla de users en phpMyadmin A PARTIR DE UNA MIGRACIONES
+Tambien creara una tabla que se llama sequelizeMeta (Aqui guardara
+el historial de las migraciones que hemos ejecutado).
+
+Forma para alterar tablas con migraciones :
+Creamos una nueva migracion con npm run migrations:generate add-role
+Con sequelize.sync() no se puede alterar una tabla que ya está creada ya que únicamente lee el modelo, y en caso de hacer alguna modificación, se queda con la primera versión (no se puede agregar un atributo más). Con las migraciones es más flexible ya que sí se pueden hacer modificaciones y tener todo de una forma organizada.
+
+Para agregar una columna se hace con el método addColumn, se define el nombre de la tabla, seguido del nombre de la columna, finalmente el esquema (nulo, string, etc), en ese caso se define el esquema del campo en específico.
+
+Para correr las migraciones que hago : npm run migrations:run
+Si ya corrio todas, no va a correr nada, porque lee si hay alguna
+actualizacion o migracion (como git)
+
+Recordar que antes de correr algo en insomnia darle a mi terminal un
+npm run dev
+
+
+RELACIONES 1-1 (UNO A UNO) :
+
+A----->B
+
+Si queremos que quede en la entidad B debemos usar hasOne
+Si queremos que quede en A usaremos belongsTO->A
+Primero definimos el modelo customer.model.js
+
+Luego de crear una tabla en codigo debemos correrla:
+npm run migrations:generate create-customers (nombre table)
+Ahora nos crea un archivo dentro de migrations
+
+Luego de crear todas las migracions -> npm run migrations:run
+
+
+
+RELACIONES 1 - MUCHOS
+
+
+Por ejemplo desde categoria a muchos productos
+
+Cuando utilizamos hasMany() La relacion va a quedar en productos
+Recordar que luego de crear todas las migraciones y asociaciones en
+codigo, debemos ejecutar el comando de npm run migrations:generate productos
+Recordar que eso nos crea un archivo dentro de la carpeta migraciones
+Y luego de hacer lo correspondiente en ese archivo -> npm run migrations:run
+
+
+
+
+
+
+
+
+
